@@ -45,8 +45,8 @@ app = Flask(__name__)
 
 # try to connect to the database, and quit if it doesn't work
 try:
-    cxn = pymongo.MongoClient("mongodb+srv://lw2808:KhzRIPszwosrZQoD@cluster0.jizlbho.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0&tlsCAFile=isrgrootx1.pem")
-    db = cxn["lw2808"]  # store a reference to the selected database
+    cxn = pymongo.MongoClient(os.getenv("MONGO_URI"))
+    db = cxn[os.getenv("MONGO_DBNAME")] # store a reference to the selected database
 
     # verify the connection works by pinging the database
     print(" * Connected to MongoDB!")  # if we get here, the connection worked!
