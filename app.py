@@ -33,9 +33,7 @@ sentry_sdk.init(
     traces_sample_rate=1.0,
     # Set profiles_sample_rate to 1.0 to profile 100% of sampled transactions.
     # We recommend adjusting this value in production.
-    profiles_sample_rate=1.0,
     integrations=[FlaskIntegration()],
-    traces_sample_rate=1.0,
     send_default_pii=True,
 )
 
@@ -47,11 +45,10 @@ app = Flask(__name__)
 
 # try to connect to the database, and quit if it doesn't work
 try:
-    cxn = pymongo.MongoClient(os.getenv("MONGO_URI"))
-    db = cxn[os.getenv("MONGO_DBNAME")]  # store a reference to the selected database
+    cxn = pymongo.MongoClient("mongodb+srv://lw2808:KhzRIPszwosrZQoD@cluster0.jizlbho.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0&tlsCAFile=isrgrootx1.pem")
+    db = cxn["lw2808"]  # store a reference to the selected database
 
     # verify the connection works by pinging the database
-    cxn.admin.command("ping")  # The ping command is cheap and does not require auth.
     print(" * Connected to MongoDB!")  # if we get here, the connection worked!
 except ConnectionFailure as e:
     # catch any database errors
@@ -62,8 +59,6 @@ except ConnectionFailure as e:
 
 
 # set up the routes
-
-
 @app.route("/")
 def home():
     """
@@ -79,115 +74,77 @@ def read():
     Route for GET requests to the read page.
     Displays some information for the user with links to other pages.
     """
-    docs = db.exampleapp.find({}).sort(
-        "created_at", -1
-    )  # sort in descending order of created_at timestamp
-    return render_template("read.html", docs=docs)  # render the read template
+    hotels = db.hotels.find({"city": "New York City"}).sort(
+        "rating", -1
+        )
+    return render_template("read.html", hotels=hotels) # render the read template
 
 
-@app.route("/create")
-def create():
+@app.route("/create", methods=["GET", "POST"])
+def create_hotel():
     """
     Route for GET requests to the create page.
     Displays a form users can fill out to create a new document.
-    """
-    return render_template("create.html")  # render the create template
-
-
-@app.route("/create", methods=["POST"])
-def create_post():
-    """
     Route for POST requests to the create page.
     Accepts the form submission data for a new document and saves the document to the database.
     """
-    name = request.form["fname"]
-    message = request.form["fmessage"]
+    if request.method == 'GET':
+        return render_template('create.html')
+    
+    elif request.method == "POST":
+        name = request.form["name"]
+        city = "New York City"
+        rating = int(request.form["rating"])
+        address = request.form["address"]
+        
+        hotel = {
+            "name": name,
+            "city": city,
+            "rating": rating,
+            "address": address
+        }
+        db.hotels.insert_one(hotel)
+        return redirect(url_for("read"))
 
-    # create a new document with the data the user entered
-    doc = {"name": name, "message": message, "created_at": datetime.datetime.utcnow()}
-    db.exampleapp.insert_one(doc)  # insert a new document
 
-    return redirect(
-        url_for("read")
-    )  # tell the browser to make a request for the /read route
-
-
-@app.route("/edit/<mongoid>")
-def edit(mongoid):
+@app.route("/edit/<hotel_id>", methods=["GET", "POST"])
+def edit(hotel_id):
     """
     Route for GET requests to the edit page.
     Displays a form users can fill out to edit an existing record.
-
-    Parameters:
-    mongoid (str): The MongoDB ObjectId of the record to be edited.
     """
-    doc = db.exampleapp.find_one({"_id": ObjectId(mongoid)})
-    return render_template(
-        "edit.html", mongoid=mongoid, doc=doc
-    )  # render the edit template
+
+    hotel_updated = db.hotels.find_one({"_id": ObjectId(hotel_id), "city": "New York City"})
+
+    if request.method == 'GET':
+        return render_template('edit.html', hotel=hotel_updated)
+    
+    elif request.method == "POST":
+        name = request.form["name"]
+        rating = int(request.form["rating"])
+        address = request.form["address"]
+        
+        updated = {
+            "name": name,
+            "rating": rating,
+            "address": address
+        }
+        db.hotels.update_one({"_id": ObjectId(hotel_id)}, {"$set": updated})
+        return redirect(
+            url_for("read", hotel_id=hotel_id)
+            )
 
 
-@app.route("/edit/<mongoid>", methods=["POST"])
-def edit_post(mongoid):
-    """
-    Route for POST requests to the edit page.
-    Accepts the form submission data for the specified document and updates the document in the database.
-
-    Parameters:
-    mongoid (str): The MongoDB ObjectId of the record to be edited.
-    """
-    name = request.form["fname"]
-    message = request.form["fmessage"]
-
-    doc = {
-        # "_id": ObjectId(mongoid),
-        "name": name,
-        "message": message,
-        "created_at": datetime.datetime.utcnow(),
-    }
-
-    db.exampleapp.update_one(
-        {"_id": ObjectId(mongoid)}, {"$set": doc}  # match criteria
-    )
-
-    return redirect(
-        url_for("read")
-    )  # tell the browser to make a request for the /read route
-
-
-@app.route("/delete/<mongoid>")
-def delete(mongoid):
+@app.route("/delete/<hotel_id>")
+def delete(hotel_id):
     """
     Route for GET requests to the delete page.
     Deletes the specified record from the database, and then redirects the browser to the read page.
-
-    Parameters:
-    mongoid (str): The MongoDB ObjectId of the record to be deleted.
     """
-    db.exampleapp.delete_one({"_id": ObjectId(mongoid)})
+    db.hotels.delete_one({"_id": ObjectId(hotel_id), "city": "New York City"})
     return redirect(
-        url_for("read")
-    )  # tell the web browser to make a request for the /read route.
-
-
-@app.route("/webhook", methods=["POST"])
-def webhook():
-    """
-    GitHub can be configured such that each time a push is made to a repository, GitHub will make a request to a particular web URL... this is called a webhook.
-    This function is set up such that if the /webhook route is requested, Python will execute a git pull command from the command line to update this app's codebase.
-    You will need to configure your own repository to have a webhook that requests this route in GitHub's settings.
-    Note that this webhook does do any verification that the request is coming from GitHub... this should be added in a production environment.
-    """
-    # run a git pull command
-    process = subprocess.Popen(["git", "pull"], stdout=subprocess.PIPE)
-    pull_output = process.communicate()[0]
-    # pull_output = str(pull_output).strip() # remove whitespace
-    process = subprocess.Popen(["chmod", "a+x", "flask.cgi"], stdout=subprocess.PIPE)
-    chmod_output = process.communicate()[0]
-    # send a success response
-    response = make_response(f"output: {pull_output}", 200)
-    response.mimetype = "text/plain"
-    return response
+        url_for("home")
+        )
 
 
 @app.errorhandler(Exception)
