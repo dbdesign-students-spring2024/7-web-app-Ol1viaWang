@@ -1,6 +1,6 @@
 # Flask-MongoDB Web App
 
-## New York City Hotels APP
+## New York City Hotels App
 
 ### Description
 This is an app that allows users to manage and view information about hotels in New York City. Users can easily retrieve some basic information about all hotels in NYC, finding and choosing the hotels that have the highest ratings. Users are also able to add, update, or delete any hotels that have incorrect or outdated information.
